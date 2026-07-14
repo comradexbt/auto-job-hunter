@@ -23,7 +23,7 @@
 **Build & Deploy Settings:**
 
 ```
-Build Command: pip install -r job_bot/requirements.txt && pip install playwright-stealth && python -m playwright install chromium
+Build Command: pip install -r job_bot/requirements.txt && pip install playwright-stealth && python -m playwright install --with-deps chromium
 Start Command: cd job_bot && python main.py
 ```
 
