@@ -51,7 +51,8 @@ desktop.ini
 *.log
 
 # ─── Resume files (user-specific) ─────────────────────────────────────────────
-job_bot/resumes/
+# Uncomment to block resume files if needed
+# job_bot/resumes/
 
 # ─── Downloads & Temp ──────────────────────────────────────────────────────────
 tmp/
