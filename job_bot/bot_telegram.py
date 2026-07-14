@@ -1149,7 +1149,18 @@ async def run_bot() -> None:
         return
 
     _EVENT_LOOP = asyncio.get_running_loop()
-    _APPLICATION = Application.builder().token(BOT_TOKEN).build()
+    
+    # Add proxy support for countries where Telegram is blocked
+    import os
+    proxy_url = os.getenv('HTTP_PROXY') or os.getenv('HTTPS_PROXY') or os.getenv('ALL_PROXY')
+    
+    if proxy_url:
+        from telegram.request import HTTPXRequest
+        request = HTTPXRequest(proxy=proxy_url)
+        _APPLICATION = Application.builder().token(BOT_TOKEN).request(request).build()
+        print(f"🔗 Using proxy: {proxy_url}")
+    else:
+        _APPLICATION = Application.builder().token(BOT_TOKEN).build()
 
     # ── Resume Editor Conversation Handler ─────────────────────────────
     resume_conv = ConversationHandler(
