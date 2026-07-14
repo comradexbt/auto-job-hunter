@@ -1,0 +1,52 @@
+{
+  "personal_info": {
+    "name": "Comrade XBT",
+    "first_name": "Comrade",
+    "last_name": "XBT",
+    "email": "comradexbt@gmail.com",
+    "phone": "",
+    "location": "Remote (Physical: Islamabad, Pakistan)",
+    "linkedin_username": "comradexbt",
+    "portfolio": "https://comradexbt.info",
+    "github_username": "comradexbt",
+    "twitter_username": "comradexbt",
+    "telegram_username": "comradexbt",
+    "discord_username": "comradexbt",
+    "website": "https://comradexbt.info",
+    "headline": "Web3 Content Creator & Community Architect"
+  },
+  "professional_summary": "Web3 Content Creator & Community Architect with 2+ years of experience in technical trading, community building, and algorithm optimization. Expert in developing custom Telegram/X bots and leveraging Python automation for social media growth.",
+  "skills": [
+    "Web3",
+    "DeFi",
+    "SocialFi",
+    "InfoFi",
+    "NFTs",
+    "Python (Pyrogram, Telethon, Tweepy)",
+    "Next.js",
+    "Three.js",
+    "Linux",
+    "Playwright",
+    "Technical Trading",
+    "Community Building",
+    "X Algorithm Optimization",
+    "Bot Development"
+  ],
+  "experience": [
+    {
+      "title": "Web3 Content Creator & Community Architect",
+      "company": "Self-Employed / Freelance",
+      "years": "2+",
+      "description": "Technical trading, community building, X algorithm optimization, custom Telegram/X bots development via Render"
+    }
+  ],
+  "education": [],
+  "certifications": [],
+  "languages": ["English"],
+  "preferences": {
+    "remote_only": true,
+    "min_match_percentage": 70,
+    "job_types": ["full-time", "contract", "remote"]
+  },
+  "cover_letter_template": "Dear Hiring Manager,\n\nI am writing to express my strong interest in the {job_title} position at {company}. As a Web3 Content Creator & Community Architect with 2+ years of experience in technical trading, community building, and automation, I am confident that my skills and experience make me an excellent candidate for this role.\n\nMy expertise includes Python (Pyrogram, Telethon, Tweepy), Next.js, Three.js, Linux, and Playwright, along with deep knowledge of Web3, DeFi, SocialFi, InfoFi, and NFTs. I have successfully built custom Telegram/X bots and optimized social media algorithms for community growth.\n\nI am particularly drawn to this opportunity because it aligns perfectly with my expertise in Web3 technologies and community building. I would welcome the opportunity to discuss how my background would be a great fit for your team.\n\nThank you for your time and consideration.\n\nBest regards,\nComrade XBT"
+}

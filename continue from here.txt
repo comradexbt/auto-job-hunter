@@ -1,0 +1,137 @@
+================================================================================
+  AUTO JOB HUNTER & APPLIER — PROJECT STATUS
+  "continue from here" — read me when starting fresh
+================================================================================
+
+📌 WHAT THIS PROJECT IS
+An autonomous system that:
+1. Scrapes job boards for listings
+2. Uses Google Gemini AI to extract job details & match against your resume
+3. Generates personalized cover letters
+4. Auto-fills and submits job applications via browser automation
+5. Sends Telegram notifications for each application
+
+================================================================================
+✅ PHASE 1-3: COMPLETE
+================================================================================
+
+📁 File Structure (all in /job_bot/):
+
+  main.py               # Main loop — orchestrates everything
+  bot_telegram.py       # Telegram bot with /start, /stats, /status, /recent, /help
+  browser_engine.py     # Playwright browser with stealth mode & form auto-fill
+  ai_processor.py       # Full Gemini AI integration (extraction, matching, cover letters)
+  db_manager.py         # SQLite database (tracks applied jobs, prevents duplicates)
+  my_resume.json        # YOUR RESUME DATA — needs skills/experience filled in!
+  target_sites.json     # YOUR TARGET URLs — replace with real job board searches!
+  requirements.txt      # Python dependencies
+  .gitignore            # Ignores DB files, browser profiles, etc.
+  continue from here.txt   # ← You are here
+
+🧠 Gemini AI (ai_processor.py) — FULLY INTEGRATED:
+  • Task A: Extracts job_title, company, remote status, skills, salary from page HTML
+  • Task B: Scores job vs resume match (0-100), applies only if >= 70%
+  • Task C: Generates personalized ≤200 word cover letters
+  • Retry logic with exponential backoff
+  • Falls back to regex/template if API is down
+
+🤖 Telegram Bot (bot_telegram.py):
+  • Runs in background thread
+  • Commands: /start, /stats, /status, /recent, /help
+  • Sends alerts: "✅ Applied to Senior Dev at Google"
+
+🌐 Browser Engine (browser_engine.py):
+  • Persistent Playwright context (saves sessions — login ONCE manually)
+  • Stealth mode to bypass Cloudflare/bot detection
+  • Human-like scrolling & typing
+  • Smart field auto-detection (by label, placeholder, name, id)
+  • Multi-page form support (basic)
+
+💾 Database (db_manager.py):
+  • SQLite with applied_jobs table (title, company, url, status, date_applied)
+  • Prevents duplicate applications
+  • Daily & total statistics
+
+🗂️ Config Files:
+  • my_resume.json — Your name, email, LinkedIn, portfolio, GitHub
+  • target_sites.json — 9 example job boards (LinkedIn, Indeed, RemoteOK, etc.)
+
+================================================================================
+⏳ PHASE 5: PENDING — AUTO-FILLER ENGINE UPGRADE
+================================================================================
+
+The current browser_engine.py has basic auto-fill but needs to be MUCH
+more robust for real-world job applications. Here's what's pending:
+
+  [ ] 1. Multi-step forms — detect "Next"/"Continue" buttons, chain steps
+       (most apps have 2-5 pages: Info → Resume → Questions → Review → Submit)
+
+  [ ] 2. Dropdown/Select fields — handle <select> elements for:
+       Country, State, Years of Experience, Work Authorization, etc.
+
+  [ ] 3. Radio buttons & checkboxes — handle:
+       "Are you authorized to work in the US?" → Yes
+       "Will you require visa sponsorship?" → No
+       "Race/Ethnicity" → Decline to self-identify
+       "Gender" → Decline to answer
+       "Veteran status" → etc.
+
+  [ ] 4. Resume upload — handle <input type="file"> for PDF upload
+
+  [ ] 5. Platform-specific handlers — different approaches for:
+       Greenhouse, Lever, Workday, Ashby, BambooHR, and custom portals
+
+  [ ] 6. Confirmation detection — detect success message vs validation errors
+
+  [ ] 7. Smart field value mapping — e.g. "Work Auth" → "Yes, I am authorized"
+       "LinkedIn" → auto-construct from username
+
+================================================================================
+🔜 PHASE 6: FUTURE ENHANCEMENTS
+================================================================================
+
+  [ ] Dry-run mode (--dry-run flag to test extraction without submitting)
+  [ ] Stats dashboard / web UI
+  [ ] Docker containerization
+  [ ] Proxy rotation for avoiding rate limits
+  [ ] Better error recovery & retry logic
+
+================================================================================
+⚠️ YOU NEED TO DO THESE BEFORE RUNNING
+================================================================================
+
+  1. 📝 my_resume.json — Fill in:
+     • "skills": ["Python", "JavaScript", ...]
+     • "experience": [{"title": "...", "company": "...", "years": "..."}, ...]
+     • "education": [{"degree": "...", "field": "...", "school": "..."}]
+
+  2. 🎯 target_sites.json — Replace with REAL job search URLs:
+     • LinkedIn search results: https://www.linkedin.com/jobs/search/?keywords=...
+     • Indeed search results: https://www.indeed.com/q-...
+     • RemoteOK: https://remoteok.com/remote-dev-jobs
+     • Any other job boards you want scanned
+
+  3. 🔑 API keys (already in code but can use env vars):
+     • TELEGRAM_BOT_TOKEN — your bot token from BotFather
+     • GEMINI_API_KEY — your Google AI API key
+
+================================================================================
+🚀 HOW TO RUN
+================================================================================
+
+  cd /path/to/job_bot/
+  pip install -r requirements.txt
+  python3 -m playwright install chromium
+  python3 main.py
+
+  Then open Telegram and send /start to your bot.
+
+================================================================================
+CURRENT SESSION STATUS
+================================================================================
+  Built with: Python 3.14, Playwright 1.61, Telegram Bot 22.8, Gemini 0.8.6
+  Completed: All files written, syntax-validated, code-reviewed
+  Paused at: About to start Phase 5 (auto-filler engine upgrade)
+  Next step: Reconnect drive, open this file, and resume from Phase 5
+
+================================================================================

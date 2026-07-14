@@ -1,0 +1,59 @@
+# ─── Secrets & Credentials ─────────────────────────────────────────────────
+*.key
+.env
+.env.local
+*.pem
+credentials.json
+service-account.json
+
+# ─── Database ──────────────────────────────────────────────────────────────────
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ─── Browser Profile (contains cookies/sessions — DO NOT COMMIT) ───────────────
+playwright_data/
+
+# ─── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+*.egg
+*.manifest
+*.spec
+
+# ─── Virtual Environment ───────────────────────────────────────────────────────
+venv/
+.venv/
+.virtualenv/
+
+# ─── IDE / Editor ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+
+# ─── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+
+# ─── Resume files (user-specific) ─────────────────────────────────────────────
+job_bot/resumes/
+
+# ─── Downloads & Temp ──────────────────────────────────────────────────────────
+tmp/
+temp/
+*.tmp
