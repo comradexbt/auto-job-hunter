@@ -18,18 +18,25 @@
    - Branch: `main`
    - "Connect" par click karein
 
-### Step 3: Build Settings Configure Karein
+### Step 3: Docker Deploy (Recommended for Playwright)
+
+**Dockerfile already created in repository - use Docker deployment:**
 
 **Build & Deploy Settings:**
 
 ```
-Build Command: pip install -r job_bot/requirements.txt && pip install playwright-stealth && python -m playwright install --with-deps chromium
-Start Command: cd job_bot && python main.py
+Runtime: Docker
+Dockerfile Path: ./Dockerfile
+Context: /
 ```
 
-**Runtime:**
-- Runtime: `Python 3`
-- Region: `Oregon (us-west)` ya closest region
+**Alternative: Python Runtime (if Docker fails):**
+
+```
+Build Command: pip install -r job_bot/requirements.txt && pip install playwright-stealth && python -m playwright install chromium && python -m playwright install-deps chromium
+Start Command: cd job_bot && python main.py
+Runtime: Python 3
+```
 
 ### Step 4: Environment Variables Add Karein
 
