@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
+    libwkhtmltox \
     libatk1.0-0 \
     libatspi2.0-0 \
     libcups2 \
@@ -24,6 +25,8 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
+    libu2f-udev \
+    libvulkan1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -33,8 +36,9 @@ COPY job_bot/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install playwright-stealth
 
-# Install Playwright browsers
-RUN playwright install --with-deps chromium
+# Install Playwright browsers without using su
+RUN playwright install chromium
+RUN playwright install-deps chromium
 
 # Copy application files
 COPY job_bot/ .
@@ -45,5 +49,6 @@ RUN mkdir -p playwright_data resumes
 # Set environment variables
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 ENV PYTHONUNBUFFERED=1
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
 
 CMD ["python", "main.py"]
