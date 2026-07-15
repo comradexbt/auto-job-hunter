@@ -22,6 +22,7 @@ from pathlib import Path
 from playwright.sync_api import (
     sync_playwright,
     BrowserContext,
+    Error as PlaywrightError,
     Page,
     Playwright,
     Locator,
@@ -382,14 +383,14 @@ class BrowserEngine:
         if self.context:
             try:
                 self.context.close()
-            except Exception:
-                pass
+            except PlaywrightError as error:
+                print(f"  └ ⚠️ Failed to close browser context: {error}")
             self.context = None
         if self.playwright:
             try:
                 self.playwright.stop()
-            except Exception:
-                pass
+            except PlaywrightError as error:
+                print(f"  └ ⚠️ Failed to stop Playwright: {error}")
             self.playwright = None
         print("🌐 Browser engine closed.")
 
@@ -431,9 +432,6 @@ class BrowserEngine:
 
             return page.content()
 
-        except Exception as e:
-            print(f"  ❌ Error loading {url}: {e}")
-            return ""
         finally:
             page.close()
 
@@ -457,9 +455,6 @@ class BrowserEngine:
             text = re.sub(r'\s+', ' ', text).strip()
             return text
 
-        except Exception as e:
-            print(f"  ❌ Error loading {url}: {e}")
-            return ""
         finally:
             page.close()
 
@@ -547,7 +542,7 @@ class BrowserEngine:
                 select_element.select_option(label=value)
                 print(f"    ✅ Selected dropdown: '{value}'")
                 return True
-            except Exception:
+            except PlaywrightError:
                 pass
 
             # Try to select by value attribute
@@ -555,7 +550,7 @@ class BrowserEngine:
                 select_element.select_option(value=value)
                 print(f"    ✅ Selected dropdown by value: '{value}'")
                 return True
-            except Exception:
+            except PlaywrightError:
                 pass
 
             # Try fuzzy matching: get all options and find a close match
@@ -601,7 +596,7 @@ class BrowserEngine:
             print(f"    ⚠️ No selectable option found for '{value}'")
             return False
 
-        except Exception as e:
+        except PlaywrightError as e:
             print(f"    ⚠️ Error handling dropdown: {e}")
             return False
 
@@ -661,7 +656,7 @@ class BrowserEngine:
                         time.sleep(random.uniform(0.3, 0.6))
                         return True
 
-            except Exception:
+            except PlaywrightError:
                 continue
 
         # Fallback: skip — don't guess on sensitive questions
@@ -688,7 +683,7 @@ class BrowserEngine:
             else:
                 print(f"    ✅ Checkbox already {'checked' if checked else 'unchecked'}")
             return True
-        except Exception as e:
+        except PlaywrightError as e:
             print(f"    ⚠️ Error handling checkbox: {e}")
             return False
 
@@ -720,7 +715,7 @@ class BrowserEngine:
                 if name not in groups:
                     groups[name] = []
                 groups[name].append(radio)
-            except Exception:
+            except PlaywrightError:
                 continue
 
         # Process each radio group with smart detection
@@ -750,7 +745,7 @@ class BrowserEngine:
                     smart_answer = self._get_smart_answer(detected_type, field_type="yes_no")
                     if smart_answer:
                         answer_lower = smart_answer.lower()
-            except Exception:
+            except PlaywrightError:
                 pass
 
             # Now click the correct radio based on the answer
@@ -780,7 +775,7 @@ class BrowserEngine:
                             print(f"    ✅ Answered No: '{label_text.strip()}'")
                             time.sleep(random.uniform(0.3, 0.6))
                             return True
-                except Exception:
+                except PlaywrightError:
                     continue
 
         # If no radio group matched, try clicking yes/no buttons
@@ -799,7 +794,7 @@ class BrowserEngine:
                         print("    ✅ Clicked Yes button")
                         time.sleep(random.uniform(0.3, 0.6))
                         return True
-                except Exception:
+                except PlaywrightError:
                     pass
         elif answer_lower in ("no", "n"):
             no_selectors = [
@@ -815,7 +810,7 @@ class BrowserEngine:
                         print("    ✅ Clicked No button")
                         time.sleep(random.uniform(0.3, 0.6))
                         return True
-                except Exception:
+                except PlaywrightError:
                     pass
 
         return False
@@ -900,10 +895,10 @@ class BrowserEngine:
                 try:
                     # Check if it looks like a resume upload field
                     file_input.set_input_files(resume_path)
-                    print(f"    ✅ Resume uploaded successfully")
+                    print("    ✅ Resume uploaded successfully")
                     time.sleep(random.uniform(1.0, 2.0))
                     return True
-                except Exception as e:
+                except PlaywrightError as e:
                     print(f"    ⚠️ Upload attempt failed: {e}")
                     continue
 
@@ -931,15 +926,15 @@ class BrowserEngine:
                         for file_input_after in file_inputs_after:
                             try:
                                 file_input_after.set_input_files(resume_path)
-                                print(f"    ✅ Resume uploaded via button")
+                                print("    ✅ Resume uploaded via button")
                                 time.sleep(random.uniform(1.0, 2.0))
                                 return True
-                            except Exception:
+                            except PlaywrightError:
                                 continue
-                except Exception:
+                except PlaywrightError:
                     continue
 
-        except Exception as e:
+        except PlaywrightError as e:
             print(f"    ❌ Resume upload error: {e}")
 
         return False
@@ -969,10 +964,10 @@ class BrowserEngine:
                     accept_attr = file_input.get_attribute("accept") or ""
                     if "image" in accept_attr.lower() or "photo" in accept_attr.lower():
                         file_input.set_input_files(profile_path)
-                        print(f"    ✅ Profile picture uploaded successfully")
+                        print("    ✅ Profile picture uploaded successfully")
                         time.sleep(random.uniform(1.0, 2.0))
                         return True
-                except Exception as e:
+                except PlaywrightError as e:
                     print(f"    ⚠️ Photo upload attempt failed: {e}")
                     continue
 
@@ -1001,15 +996,15 @@ class BrowserEngine:
                                 accept_attr = file_input_after.get_attribute("accept") or ""
                                 if "image" in accept_attr.lower():
                                     file_input_after.set_input_files(profile_path)
-                                    print(f"    ✅ Profile picture uploaded via button")
+                                    print("    ✅ Profile picture uploaded via button")
                                     time.sleep(random.uniform(1.0, 2.0))
                                     return True
-                            except Exception:
+                            except PlaywrightError:
                                 continue
-                except Exception:
+                except PlaywrightError:
                     continue
 
-        except Exception as e:
+        except PlaywrightError as e:
             print(f"    ❌ Profile picture upload error: {e}")
 
         return False
@@ -1077,7 +1072,7 @@ class BrowserEngine:
                     if locator.count() > 0 and locator.is_visible():
                         buttons[btn_type] = locator
                         break
-                except Exception:
+                except PlaywrightError:
                     continue
 
         return buttons
@@ -1141,7 +1136,7 @@ class BrowserEngine:
                 print(f"    📑 Submit button found on step {current_step}")
                 break
             else:
-                print(f"    📑 No navigation buttons found, might be final step")
+                print("    📑 No navigation buttons found, might be final step")
                 break
 
     # ─── Field Auto-Detection & Filling ─────────────────────────────────────────
@@ -1180,7 +1175,7 @@ class BrowserEngine:
                     # Small random delay after filling
                     time.sleep(random.uniform(0.3, 0.8))
                     print(f"    ✅ Filled: {field_name}")
-            except Exception as e:
+            except PlaywrightError as e:
                 print(f"    ⚠️ Could not fill '{field_name}': {e}")
 
     def auto_detect_and_fill(
@@ -1241,7 +1236,7 @@ class BrowserEngine:
                         answer = self._get_smart_answer(detected, field_type="select")
                         if answer:
                             self._handle_dropdown(page, select, answer)
-            except Exception:
+            except PlaywrightError:
                 continue
 
         # ── Phase 4: Handle text inputs (standard fields) ──────────────
@@ -1300,7 +1295,7 @@ class BrowserEngine:
                             filled_fields.add(field)
                             found = True
                             break
-                except Exception:
+                except PlaywrightError:
                     pass
 
                 if found:
@@ -1326,7 +1321,7 @@ class BrowserEngine:
                                 filled_fields.add(field)
                                 found = True
                                 break
-                except Exception:
+                except PlaywrightError:
                     pass
 
                 if found:
@@ -1354,7 +1349,7 @@ class BrowserEngine:
                         print(f"    ✅ Auto-filled: {field}")
                         filled_fields.add(field)
                         found = True
-                except Exception:
+                except PlaywrightError:
                     pass
 
                 if found:
@@ -1450,7 +1445,7 @@ class BrowserEngine:
                         if errors.count() > 0:
                             error_text = errors.first.inner_text()[:200] if errors.first.count() > 0 else ""
                             return False, f"Validation error detected: {error_text}"
-                    except Exception:
+                    except PlaywrightError:
                         continue
 
                 return False, "Validation errors might exist on the page"
@@ -1461,7 +1456,7 @@ class BrowserEngine:
             invalid_fields = page.locator("[aria-invalid='true']")
             if invalid_fields.count() > 0:
                 return False, f"Found {invalid_fields.count()} invalid field(s)"
-        except Exception:
+        except PlaywrightError:
             pass
 
         # Check for success buttons / messages
@@ -1469,7 +1464,7 @@ class BrowserEngine:
             success_el = page.locator("text=/thank you/i").first
             if success_el.count() > 0:
                 return True, "Success message detected"
-        except Exception:
+        except PlaywrightError:
             pass
 
         return False, "Unable to determine submission result (ambiguous)"
@@ -1514,7 +1509,7 @@ class BrowserEngine:
                 cl_textarea.click()
                 cl_textarea.fill(cover_letter)
                 print("    ✅ Filled cover letter (Greenhouse)")
-        except Exception as e:
+        except PlaywrightError as e:
             print(f"    ⚠️ Could not fill cover letter: {e}")
 
         # Look for radio button questions (demographics, etc.)
@@ -1525,7 +1520,7 @@ class BrowserEngine:
         for field in demographics_fields:
             try:
                 self._handle_dropdown(page, field, "I prefer not to answer")
-            except Exception:
+            except PlaywrightError:
                 pass
 
         # Handle multi-step (Greenhouse often has a single page)
@@ -1586,7 +1581,7 @@ class BrowserEngine:
                 cl_input.click()
                 cl_input.fill(cover_letter)
                 print("    ✅ Filled cover letter (Lever)")
-        except Exception as e:
+        except PlaywrightError as e:
             print(f"    ⚠️ Could not fill cover letter: {e}")
 
         # Handle diversity/equal opportunity questions
@@ -1608,7 +1603,7 @@ class BrowserEngine:
                 elif re.search(r"felony|criminal|convict", text):
                     radios = q.locator("input[type='radio']").all()
                     self._handle_radio_group(page, radios, "no")
-            except Exception:
+            except PlaywrightError:
                 pass
 
         # Submit
@@ -1630,7 +1625,7 @@ class BrowserEngine:
         print("    🏗️ Using Workday-specific handler")
 
         # Workday often uses iframes — attempt to find the application iframe
-        workday_page = page
+        _workday_page = page
         try:
             iframes = page.locator("iframe").all()
             for iframe in iframes:
@@ -1639,11 +1634,11 @@ class BrowserEngine:
                     if frame:
                         body = frame.locator("body")
                         if body.count() > 0 and "application" in body.inner_text().lower():
-                            workday_page = frame
+                            _workday_page = frame
                             break
-                except Exception:
+                except PlaywrightError:
                     continue
-        except Exception:
+        except PlaywrightError:
             pass
 
         # Wait for Workday form to load (it's slow)
@@ -1686,7 +1681,7 @@ class BrowserEngine:
                             answer = self._get_smart_answer(detected, field_type="select")
                             if answer:
                                 self._handle_dropdown(page, select, answer)
-                except Exception:
+                except PlaywrightError:
                     continue
 
             # Handle radio buttons
@@ -1754,7 +1749,7 @@ class BrowserEngine:
                 cl_textarea.click()
                 cl_textarea.fill(cover_letter)
                 print("    ✅ Filled cover letter (Ashby)")
-        except Exception as e:
+        except PlaywrightError as e:
             print(f"    ⚠️ Could not fill cover letter: {e}")
 
         # Handle any radio/dropdown questions
@@ -1762,7 +1757,7 @@ class BrowserEngine:
         for select in selects:
             try:
                 self._handle_dropdown(page, select, "I prefer not to answer")
-            except Exception:
+            except PlaywrightError:
                 pass
 
         # Submit
@@ -1840,7 +1835,7 @@ class BrowserEngine:
                     btn.click()
                     print(f"    🖱️ Clicked: '{pattern}' button")
                     return True
-            except Exception:
+            except PlaywrightError:
                 pass
 
         # Last resort: try any submit-type input or button
@@ -1853,7 +1848,7 @@ class BrowserEngine:
                 btn.click()
                 print("    🖱️ Clicked submit button (generic)")
                 return True
-        except Exception:
+        except PlaywrightError:
             pass
 
         print("    ⚠️ Could not find submit button")
@@ -1941,8 +1936,5 @@ class BrowserEngine:
                     print("  ⚠️ Application form filled but submit button not found")
                     return False
 
-        except Exception as e:
-            print(f"  ❌ Error during application: {e}")
-            return False
         finally:
             page.close()

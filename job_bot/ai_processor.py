@@ -68,7 +68,7 @@ def init_gemini():
         _genai_model = None
         _genai_available = False
         print(f"  └ ⚠️ Gemini init failed: {e}")
-        print(f"  └    Falling back to regex extraction")
+        print("  └    Falling back to regex extraction")
 
     return _genai_model
 
@@ -513,7 +513,7 @@ def match_job(job_info: dict, resume: dict) -> bool:
 
     # Unknown position – can't match, skip
     if job_info.get("job_title", "").lower() in ("", "unknown position", "unknown"):
-        print(f"  └ [MATCH] ❌ Unknown position, skipping")
+        print("  └ [MATCH] ❌ Unknown position, skipping")
         return False
 
     # ── Gemini-powered matching ─────────────────────────────────────────
@@ -580,7 +580,7 @@ def match_job(job_info: dict, resume: dict) -> bool:
 
     # ── Fallback matching logic ─────────────────────────────────────────
     # Accept all remote jobs as a safe fallback
-    print(f"  └ [MATCH] ✅ Remote job accepted (fallback mode)")
+    print("  └ [MATCH] ✅ Remote job accepted (fallback mode)")
     return True
 
 
@@ -809,8 +809,11 @@ def generate_cover_letter(job_info: dict, resume: dict) -> str:
                 job_title=job_info.get("job_title", "the position"),
                 company=job_info.get("company", "your company"),
             )
-        except KeyError:
-            pass
+        except KeyError as error:
+            print(
+                "  └ ⚠️ Cover letter template contains an unsupported "
+                f"placeholder: {error}"
+            )
 
     return (
         f"Dear Hiring Manager,\n\n"
