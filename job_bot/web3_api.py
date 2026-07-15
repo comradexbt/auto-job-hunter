@@ -93,8 +93,13 @@ def fetch_jobs(
                 raise Web3APIError("Web3 API jobs payload is not a list")
 
             # Convert to our standard job_info format
-            jobs = [_normalize_job(j) for j in jobs_raw if isinstance(j, dict)]
-            jobs = [j for j in jobs if j is not None]
+            jobs = []
+            for raw_job in jobs_raw:
+                if not isinstance(raw_job, dict):
+                    continue
+                normalized_job = _normalize_job(raw_job)
+                if normalized_job is not None:
+                    jobs.append(normalized_job)
 
             print(f"  └ 🌐 Web3 Jobs API: fetched {len(jobs)} jobs from {len(jobs_raw)} entries")
             return jobs
