@@ -14,6 +14,7 @@ from db_manager import init_db, is_job_applied, save_job, get_today_stats
 import bot_telegram
 from browser_engine import BrowserEngine
 from ai_processor import load_resume, extract_job_info, match_job, generate_cover_letter, generate_form_answer
+from security import is_safe_public_http_url
 import web3_api
 
 # ─── Configuration ──────────────────────────────────────────────────────────────
@@ -40,9 +41,19 @@ def load_targets() -> list:
     try:
         with open(path, "r", encoding="utf-8") as f:
             targets = json.load(f)
-        print(f"  └ Loaded {len(targets)} target URLs")
-        return targets
-    except (FileNotFoundError, json.JSONDecodeError) as e:
+        if not isinstance(targets, list):
+            raise ValueError("target_sites.json must contain a list of URLs")
+        safe_targets = [
+            url
+            for url in targets
+            if isinstance(url, str) and is_safe_public_http_url(url)
+        ]
+        blocked_count = len(targets) - len(safe_targets)
+        if blocked_count:
+            print(f"  └ 🛡️ Ignored {blocked_count} unsafe target URL(s)")
+        print(f"  └ Loaded {len(safe_targets)} target URLs")
+        return safe_targets
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
         print(f"❌ Error loading target URLs: {e}")
         return []
 

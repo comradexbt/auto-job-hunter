@@ -43,15 +43,17 @@ Runtime: Python 3
 **Environment Variables Section mein ye sab add karein:**
 
 ```
-WEB3_API_TOKEN = U8sMcZhH43rDxQuEAgTiHRJcAh1QKrED
+WEB3_API_TOKEN = your_web3_api_token_here
 TELEGRAM_BOT_TOKEN = your_telegram_bot_token_here
+TELEGRAM_ALLOWED_USER_IDS = your_numeric_telegram_user_id
 GEMINI_API_KEY = your_gemini_api_key_here
 ```
 
 **Important:**
 - TELEGRAM_BOT_TOKEN apna BotFather se lein
+- TELEGRAM_ALLOWED_USER_IDS mein apna numeric Telegram user ID add karein
 - GEMINI_API_KEY Google AI Studio se lein
-- WEB3_API_TOKEN already hai
+- WEB3_API_TOKEN provider se lein
 
 ### Step 5: Instance Type Select Karein
 

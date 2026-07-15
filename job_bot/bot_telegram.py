@@ -12,18 +12,28 @@ from typing import Optional, Dict, Any
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
+    ApplicationHandlerStop,
     CommandHandler,
     CallbackQueryHandler,
     ConversationHandler,
     MessageHandler,
+    TypeHandler,
     filters,
     ContextTypes,
 )
 
 from db_manager import get_today_stats, get_total_stats, get_recent_applied
+from security import is_safe_public_http_url, parse_allowed_user_ids
 
 # ─── Configuration ──────────────────────────────────────────────────────────────
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or ""
+try:
+    ALLOWED_USER_IDS = parse_allowed_user_ids(
+        os.getenv("TELEGRAM_ALLOWED_USER_IDS", "")
+    )
+except ValueError:
+    ALLOWED_USER_IDS = frozenset()
+    print("❌ TELEGRAM_ALLOWED_USER_IDS must be a comma-separated list of numeric IDs.")
 
 if not BOT_TOKEN:
     print("⚠️  TELEGRAM_BOT_TOKEN not set! Set it as an environment variable or in a .env file.")
@@ -42,6 +52,27 @@ BOT_READY = threading.Event()
 _PENDING_QUESTION: Optional[str] = None
 _QUESTION_ANSWER: Optional[str] = None
 _QUESTION_READY = threading.Event()
+
+
+async def authorize_update(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    user = update.effective_user
+    chat = update.effective_chat
+    if (
+        user
+        and user.id in ALLOWED_USER_IDS
+        and chat
+        and chat.type == "private"
+    ):
+        return
+
+    if update.callback_query:
+        await update.callback_query.answer("Unauthorized", show_alert=True)
+    elif update.effective_message:
+        await update.effective_message.reply_text("Unauthorized.")
+    raise ApplicationHandlerStop
 
 # ─── Conversation States ────────────────────────────────────────────────────────
 (
@@ -847,10 +878,10 @@ async def handle_target_add(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     url = update.message.text.strip()
     targets = _load_targets()
 
-    if not url.startswith("http://") and not url.startswith("https://"):
+    if not is_safe_public_http_url(url):
         await update.message.reply_text(
-            "❌ Invalid URL! Must start with `http://` or `https://`.\n\n"
-            "Example: `https://www.linkedin.com/jobs/`",
+            "❌ Invalid URL. Use a public `http://` or `https://` address; "
+            "local, private-network, and credential-bearing URLs are blocked.",
             parse_mode="Markdown",
         )
         return AWAIT_TARGET_ADD
@@ -1147,6 +1178,11 @@ async def run_bot() -> None:
         print("   The bot will not start, but the scanning loop can still run.")
         BOT_READY.set()
         return
+    if not ALLOWED_USER_IDS:
+        print("❌ TELEGRAM_ALLOWED_USER_IDS is empty or invalid.")
+        print("   Telegram control is disabled until an owner allowlist is configured.")
+        BOT_READY.set()
+        return
 
     _EVENT_LOOP = asyncio.get_running_loop()
     
@@ -1158,9 +1194,11 @@ async def run_bot() -> None:
         from telegram.request import HTTPXRequest
         request = HTTPXRequest(proxy=proxy_url)
         _APPLICATION = Application.builder().token(BOT_TOKEN).request(request).build()
-        print(f"🔗 Using proxy: {proxy_url}")
+        print("🔗 Using configured Telegram proxy")
     else:
         _APPLICATION = Application.builder().token(BOT_TOKEN).build()
+
+    _APPLICATION.add_handler(TypeHandler(Update, authorize_update), group=-1)
 
     # ── Resume Editor Conversation Handler ─────────────────────────────
     resume_conv = ConversationHandler(

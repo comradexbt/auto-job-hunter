@@ -111,8 +111,9 @@ more robust for real-world job applications. Here's what's pending:
      • RemoteOK: https://remoteok.com/remote-dev-jobs
      • Any other job boards you want scanned
 
-  3. 🔑 API keys (already in code but can use env vars):
+  3. 🔑 API keys and Telegram access controls (environment variables only):
      • TELEGRAM_BOT_TOKEN — your bot token from BotFather
+     • TELEGRAM_ALLOWED_USER_IDS — comma-separated trusted numeric user IDs
      • GEMINI_API_KEY — your Google AI API key
 
 ================================================================================

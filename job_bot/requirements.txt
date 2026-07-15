@@ -1,13 +1,13 @@
 # Auto Job Hunter & Applier - Dependencies
 
 # Browser Automation
-playwright>=1.40.0
+playwright==1.61.0
 
 # Stealth Mode
-playwright_stealth>=1.0.6
+playwright_stealth==2.0.3
 
 # Telegram Bot
-python-telegram-bot>=20.7
+python-telegram-bot==22.8
 
 # Google Gemini AI
-google-generativeai>=0.8.0
+google-generativeai==0.8.6
