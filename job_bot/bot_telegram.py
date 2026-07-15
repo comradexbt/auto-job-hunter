@@ -7,7 +7,9 @@ import asyncio
 import json
 import os
 import threading
-from typing import Optional, Dict, Any
+import traceback
+from concurrent.futures import Future
+from typing import Optional
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -36,6 +38,8 @@ _CHAT_ID: Optional[int] = None
 _CHAT_ID_LOCK = threading.Lock()
 _APPLICATION: Optional[Application] = None
 _EVENT_LOOP: Optional[asyncio.AbstractEventLoop] = None
+_BOT_ERROR: Optional[Exception] = None
+_BOT_ERROR_LOCK = threading.Lock()
 BOT_READY = threading.Event()
 
 # Form question handling state
@@ -75,23 +79,17 @@ _QUESTION_READY = threading.Event()
 
 def _load_resume() -> dict:
     """Load the resume JSON file."""
-    try:
-        with open(RESUME_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"❌ Resume load error: {e}")
-        return {}
+    with open(RESUME_PATH, "r", encoding="utf-8") as f:
+        resume = json.load(f)
+    if not isinstance(resume, dict):
+        raise ValueError("my_resume.json must contain a JSON object")
+    return resume
 
 
-def _save_resume(data: dict) -> bool:
+def _save_resume(data: dict) -> None:
     """Save the resume JSON file."""
-    try:
-        with open(RESUME_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        return True
-    except Exception as e:
-        print(f"❌ Resume save error: {e}")
-        return False
+    with open(RESUME_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -102,20 +100,20 @@ def _load_targets() -> list:
     """Load target URLs from target_sites.json."""
     try:
         with open(TARGETS_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+            targets = json.load(f)
+    except FileNotFoundError:
         return []
+    if not isinstance(targets, list) or not all(
+        isinstance(target, str) for target in targets
+    ):
+        raise ValueError("target_sites.json must contain a list of URL strings")
+    return targets
 
 
-def _save_targets(targets: list) -> bool:
+def _save_targets(targets: list) -> None:
     """Save target URLs to target_sites.json."""
-    try:
-        with open(TARGETS_PATH, "w", encoding="utf-8") as f:
-            json.dump(targets, f, indent=2, ensure_ascii=False)
-        return True
-    except Exception as e:
-        print(f"❌ Targets save error: {e}")
-        return False
+    with open(TARGETS_PATH, "w", encoding="utf-8") as f:
+        json.dump(targets, f, indent=2, ensure_ascii=False)
 
 
 def _format_targets_summary(targets: list) -> str:
@@ -141,7 +139,7 @@ def _format_resume_summary(resume: dict) -> str:
     lines = ["📋 *Your Resume*"]
 
     # Personal Info
-    lines.append(f"\n👤 *Personal Info*")
+    lines.append("\n👤 *Personal Info*")
     lines.append(f"   Name: {info.get('name', '—')} {info.get('last_name', '')}")
     lines.append(f"   Email: {info.get('email', '—')}")
     lines.append(f"   Phone: {info.get('phone', '—') or '—'}")
@@ -154,7 +152,7 @@ def _format_resume_summary(resume: dict) -> str:
         lines.append(f"\n🛠 *Skills* ({len(skills)})")
         lines.append(f"   {', '.join(skills)}")
     else:
-        lines.append(f"\n🛠 *Skills* (0) — _Add some!_")
+        lines.append("\n🛠 *Skills* (0) — _Add some!_")
 
     # Experience
     lines.append(f"\n💼 *Experience* ({len(experience)})")
@@ -162,7 +160,7 @@ def _format_resume_summary(resume: dict) -> str:
         for i, exp in enumerate(experience, 1):
             lines.append(f"   {i}. {exp.get('title', '—')} @ {exp.get('company', '—')} ({exp.get('years', '?')}yrs)")
     else:
-        lines.append(f"   _No experience added yet_")
+        lines.append("   _No experience added yet_")
 
     # Education
     lines.append(f"\n🎓 *Education* ({len(education)})")
@@ -170,10 +168,10 @@ def _format_resume_summary(resume: dict) -> str:
         for i, edu in enumerate(education, 1):
             lines.append(f"   {i}. {edu.get('degree', '—')} in {edu.get('field', '—')} — {edu.get('school', '—')}")
     else:
-        lines.append(f"   _No education added yet_")
+        lines.append("   _No education added yet_")
 
     # Preferences
-    lines.append(f"\n⚙️ *Preferences*")
+    lines.append("\n⚙️ *Preferences*")
     lines.append(f"   Remote only: {'✅' if prefs.get('remote_only') else '❌'}")
     lines.append(f"   Min match: {prefs.get('min_match_percentage', 70)}%")
 
@@ -1107,18 +1105,26 @@ async def _send_alert_async(message: str) -> None:
         print(f"[Telegram Alert] {message}")
         return
 
+    await _APPLICATION.bot.send_message(
+        chat_id=chat_id,
+        text=message,
+        parse_mode="Markdown",
+    )
+
+
+def _report_alert_failure(future: Future) -> None:
     try:
-        await _APPLICATION.bot.send_message(
-            chat_id=chat_id,
-            text=message,
-            parse_mode="Markdown",
+        future.result()
+    except Exception as error:
+        print(f"[Telegram Error] Failed to send alert: {error}")
+        traceback.print_exception(
+            type(error),
+            error,
+            error.__traceback__,
         )
-    except Exception as e:
-        print(f"[Telegram Error] Failed to send alert: {e}")
-        print(f"[Telegram Alert] {message}")
 
 
-def send_alert(message: str) -> None:
+def send_alert(message: str) -> Optional[Future]:
     """Thread-safe way to send a notification to the user via Telegram.
 
     This can be called from any thread - it schedules the coroutine
@@ -1131,9 +1137,14 @@ def send_alert(message: str) -> None:
 
     if not chat_id or not _APPLICATION or not _EVENT_LOOP:
         print(f"[Telegram Alert] {message}")
-        return
+        return None
 
-    asyncio.run_coroutine_threadsafe(_send_alert_async(message), _EVENT_LOOP)
+    future = asyncio.run_coroutine_threadsafe(
+        _send_alert_async(message),
+        _EVENT_LOOP,
+    )
+    future.add_done_callback(_report_alert_failure)
+    return future
 
 
 # ─── Bot Lifecycle ──────────────────────────────────────────────────────────────
@@ -1282,7 +1293,7 @@ async def run_bot() -> None:
         while True:
             await asyncio.sleep(60)
     except asyncio.CancelledError:
-        pass
+        raise
     finally:
         await _APPLICATION.updater.stop()
         await _APPLICATION.stop()
@@ -1292,8 +1303,21 @@ async def run_bot() -> None:
 def start_bot_thread() -> threading.Thread:
     """Start the Telegram bot in a daemon background thread."""
     def _run():
-        asyncio.run(run_bot())
+        global _BOT_ERROR
+        try:
+            asyncio.run(run_bot())
+        except Exception as error:
+            with _BOT_ERROR_LOCK:
+                _BOT_ERROR = error
+            BOT_READY.set()
+            raise
 
     thread = threading.Thread(target=_run, name="TelegramBot", daemon=True)
     thread.start()
     return thread
+
+
+def get_bot_error() -> Optional[Exception]:
+    """Return the background bot failure, if one occurred."""
+    with _BOT_ERROR_LOCK:
+        return _BOT_ERROR

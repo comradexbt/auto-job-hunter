@@ -24,6 +24,11 @@ MAX_RETRIES = 3
 
 # ─── Fetcher ────────────────────────────────────────────────────────────────────
 
+
+class Web3APIError(RuntimeError):
+    """Raised when the Web3 Jobs API request cannot be completed."""
+
+
 def fetch_jobs(
     limit: int = DEFAULT_LIMIT,
     remote_only: bool = True,
@@ -40,7 +45,9 @@ def fetch_jobs(
 
     Returns:
         List of job dicts with keys matching our job_info format.
-        Returns empty list on failure.
+
+    Raises:
+        Web3APIError: If the API rejects the request or all retries fail.
     """
     if not WEB3_API_TOKEN:
         print("  └ ⚠️  WEB3_API_TOKEN not set — skipping Web3 Jobs API")
@@ -72,17 +79,27 @@ def fetch_jobs(
             # Parse the response format:
             # [0] = info string, [1] = terms string, [2] = array of job objects
             if isinstance(data, list) and len(data) >= 3:
-                jobs_raw = data[2] if isinstance(data[2], list) else []
+                jobs_raw = data[2]
             elif isinstance(data, list) and len(data) >= 2 and isinstance(data[1], list):
                 jobs_raw = data[1]
             elif isinstance(data, dict) and "jobs" in data:
                 jobs_raw = data["jobs"]
+            elif isinstance(data, list):
+                jobs_raw = data
             else:
-                jobs_raw = data if isinstance(data, list) else []
+                raise Web3APIError("Web3 API returned an unexpected response format")
+
+            if not isinstance(jobs_raw, list):
+                raise Web3APIError("Web3 API jobs payload is not a list")
 
             # Convert to our standard job_info format
-            jobs = [_normalize_job(j) for j in jobs_raw if isinstance(j, dict)]
-            jobs = [j for j in jobs if j is not None]
+            jobs = []
+            for raw_job in jobs_raw:
+                if not isinstance(raw_job, dict):
+                    continue
+                normalized_job = _normalize_job(raw_job)
+                if normalized_job is not None:
+                    jobs.append(normalized_job)
 
             print(f"  └ 🌐 Web3 Jobs API: fetched {len(jobs)} jobs from {len(jobs_raw)} entries")
             return jobs
@@ -94,14 +111,17 @@ def fetch_jobs(
                 time.sleep(wait)
                 last_error = f"HTTP {e.code}"
             elif e.code == 403:
-                print("  └ ❌ Web3 API: 403 Forbidden — token may be invalid")
-                return []
+                raise Web3APIError(
+                    "Web3 API returned 403 Forbidden; the token may be invalid"
+                ) from e
             elif e.code == 401:
-                print("  └ ❌ Web3 API: 401 Unauthorized — token is invalid")
-                return []
+                raise Web3APIError(
+                    "Web3 API returned 401 Unauthorized; the token is invalid"
+                ) from e
             else:
-                print(f"  └ ⚠️ Web3 API HTTP error {e.code}: {e}")
-                return []
+                raise Web3APIError(
+                    f"Web3 API returned HTTP {e.code} ({e.reason})"
+                ) from e
 
         except (URLError, OSError) as e:
             wait = RETRY_DELAY * (2 ** attempt)
@@ -110,11 +130,11 @@ def fetch_jobs(
             last_error = str(e)
 
         except json.JSONDecodeError as e:
-            print(f"  └ ❌ Web3 API: invalid JSON response: {e}")
-            return []
+            raise Web3APIError("Web3 API returned invalid JSON") from e
 
-    print(f"  └ ❌ Web3 API: all {MAX_RETRIES} attempts failed: {last_error}")
-    return []
+    raise Web3APIError(
+        f"Web3 API failed after {MAX_RETRIES} attempts: {last_error}"
+    )
 
 
 def _normalize_job(raw: dict) -> Optional[dict]:
@@ -160,5 +180,3 @@ def _normalize_job(raw: dict) -> Optional[dict]:
         "date_posted": raw.get("date", ""),
         "location": raw.get("location", ""),
     }
-
-
