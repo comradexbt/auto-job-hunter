@@ -3,17 +3,16 @@ Main Execution Loop (Phase 6)
 Orchestrates the Browser Engine, AI Processor, Database Manager,
 and Telegram Bot into a continuous job-hunting workflow.
 """
-import json
 import os
 import random
 import signal
-import sys
-import time
+from typing import Optional
 
 from db_manager import init_db, is_job_applied, save_job, get_today_stats
 import bot_telegram
 from browser_engine import BrowserEngine
-from ai_processor import load_resume, extract_job_info, match_job, generate_cover_letter, generate_form_answer
+from ai_processor import load_resume, extract_job_info, match_job, generate_cover_letter
+from utils import interruptible_sleep, load_json
 import web3_api
 
 # ─── Configuration ──────────────────────────────────────────────────────────────
@@ -37,14 +36,9 @@ def signal_handler(sig, frame):
 def load_targets() -> list:
     """Load target job board URLs from target_sites.json."""
     path = os.path.join(CONFIG_DIR, "target_sites.json")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            targets = json.load(f)
-        print(f"  └ Loaded {len(targets)} target URLs")
-        return targets
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"❌ Error loading target URLs: {e}")
-        return []
+    targets: list = load_json(path, [], "❌ Error loading target URLs")
+    print(f"  └ Loaded {len(targets)} target URLs")
+    return targets
 
 
 def prepare_user_data(resume: dict) -> dict:
@@ -68,6 +62,68 @@ def prepare_user_data(resume: dict) -> dict:
     }
 
 
+def _is_running() -> bool:
+    return _running
+
+
+def _wait_before_next_action() -> None:
+    delay = random.uniform(CYCLE_DELAY_MIN, CYCLE_DELAY_MAX)
+    print(f"  └ ⏳ Waiting {delay:.1f}s before next action...")
+    interruptible_sleep(delay, _is_running)
+
+
+def _process_job(
+    engine: BrowserEngine,
+    resume: dict,
+    user_data: dict,
+    job_info: dict,
+    fallback_url: str = "",
+    source: str = "",
+) -> Optional[bool]:
+    job_title = job_info.get("job_title", "Unknown")
+    company = job_info.get("company", "Unknown")
+    app_url = job_info.get("application_url") or fallback_url
+
+    if not app_url:
+        print("  └ ⏭️ No application URL, skipping")
+        return None
+
+    if is_job_applied(app_url):
+        print(f"  └ ⏭️ Already applied to '{job_title}'")
+        return None
+
+    if not match_job(job_info, resume):
+        print(f"  └ ⏭️ '{job_title}' doesn't match criteria")
+        return None
+
+    print("  └ ✍️ Generating cover letter...")
+    cover_letter = generate_cover_letter(job_info, resume)
+
+    print(f"  └ 📝 Applying for '{job_title}'...")
+    success = engine.apply_to_job(
+        form_url=app_url,
+        user_data=user_data,
+        cover_letter=cover_letter,
+    )
+
+    if not success:
+        print("  └ ⚠️ Application may not have been submitted")
+        return False
+
+    save_job(job_title, company, app_url)
+    source_line = f"🌐 *Source:* {source}\n" if source else ""
+    alert_title = f"{source.split()[0]} Application" if source else "Application"
+    bot_telegram.send_alert(
+        f"✅ *{alert_title} Submitted!*\n\n"
+        f"📌 *Position:* {job_title}\n"
+        f"🏢 *Company:* {company}\n"
+        f"{source_line}"
+        f"📊 *Total Applied:* {get_today_stats()} today"
+    )
+    print("  └ ✅ Application submitted successfully!")
+    return True
+
+
 def process_web3_jobs(engine: BrowserEngine, resume: dict, user_data: dict) -> int:
     """Fetch jobs from Web3 Jobs API and process them through the pipeline.
 
@@ -76,7 +132,7 @@ def process_web3_jobs(engine: BrowserEngine, resume: dict, user_data: dict) -> i
     global _running
     applied_count = 0
 
-    print(f"\n  🌐 Fetching Web3 jobs from API...")
+    print("\n  🌐 Fetching Web3 jobs from API...")
 
     # Fetch latest remote Web3 jobs — AI matching will filter relevant ones
     jobs = web3_api.fetch_jobs(limit=30, remote_only=True)
@@ -95,58 +151,17 @@ def process_web3_jobs(engine: BrowserEngine, resume: dict, user_data: dict) -> i
         company = job_info.get("company", "Unknown")
         print(f"\n  ── Web3 Job: {job_title} at {company}")
 
-        # Check database for duplicates
-        app_url = job_info.get("application_url", "")
-        if not app_url:
-            print("  └ ⏭️ No application URL, skipping")
-            continue
-
-        if is_job_applied(app_url):
-            print(f"  └ ⏭️ Already applied to '{job_title}'")
-            continue
-
-        # Match against resume using AI
-        if not match_job(job_info, resume):
-            print(f"  └ ⏭️ '{job_title}' doesn't match criteria")
-            continue
-
-        # Generate cover letter
-        print(f"  └ ✍️ Generating cover letter...")
-        cover_letter = generate_cover_letter(job_info, resume)
-
-        # Apply to the job via browser
-        print(f"  └ 📝 Applying for '{job_title}'...")
-        success = engine.apply_to_job(
-            form_url=app_url,
-            user_data=user_data,
-            cover_letter=cover_letter,
+        result = _process_job(
+            engine,
+            resume,
+            user_data,
+            job_info,
+            source="Web3 Jobs API",
         )
-
-        if success:
-            # Save to database
-            save_job(job_title, company, app_url)
+        if result is True:
             applied_count += 1
-
-            # Send Telegram notification
-            bot_telegram.send_alert(
-                f"✅ *Web3 Application Submitted!*\n\n"
-                f"📌 *Position:* {job_title}\n"
-                f"🏢 *Company:* {company}\n"
-                f"🌐 *Source:* Web3 Jobs API\n"
-                f"📊 *Total Applied:* {get_today_stats()} today"
-            )
-
-            print(f"  └ ✅ Application submitted successfully!")
-        else:
-            print(f"  └ ⚠️ Application may not have been submitted")
-
-        # Human-like random delay between actions
-        delay = random.uniform(CYCLE_DELAY_MIN, CYCLE_DELAY_MAX)
-        print(f"  └ ⏳ Waiting {delay:.1f}s before next action...")
-        for _ in range(int(delay)):
-            if not _running:
-                break
-            time.sleep(1)
+        if result is not None:
+            _wait_before_next_action()
 
     return applied_count
 
@@ -177,7 +192,7 @@ def scanning_loop():
         return
 
     if has_web3:
-        print(f"  └ 🌐 Web3 Jobs API: connected")
+        print("  └ 🌐 Web3 Jobs API: connected")
 
     engine = BrowserEngine(headless=False)
 
@@ -234,55 +249,20 @@ def scanning_loop():
                         company = job_info["company"]
                         print(f"  └ 📋 Found: {job_title} at {company}")
 
-                        # Check database for duplicates
-                        app_url = job_info.get("application_url", url)
-                        if is_job_applied(app_url):
-                            print(f"  └ ⏭️ Already applied to '{job_title}'")
-                            continue
-
-                        # Phase 4: Match against resume
-                        if not match_job(job_info, resume):
-                            print(f"  └ ⏭️ '{job_title}' doesn't match criteria")
-                            continue
-
-                        # Phase 4: Generate cover letter
-                        print(f"  └ ✍️ Generating cover letter...")
-                        cover_letter = generate_cover_letter(job_info, resume)
-
-                        # Phase 5: Apply to the job
-                        print(f"  └ 📝 Applying for '{job_title}'...")
-                        success = engine.apply_to_job(
-                            form_url=app_url or url,
-                            user_data=user_data,
-                            cover_letter=cover_letter,
+                        result = _process_job(
+                            engine,
+                            resume,
+                            user_data,
+                            job_info,
+                            fallback_url=url,
                         )
-
-                        if success:
-                            # Save to database
-                            save_job(job_title, company, app_url or url)
-
-                            # Send Telegram notification
-                            bot_telegram.send_alert(
-                                f"✅ *Application Submitted!*\n\n"
-                                f"📌 *Position:* {job_title}\n"
-                                f"🏢 *Company:* {company}\n"
-                                f"📊 *Total Applied:* {get_today_stats()} today"
-                            )
-
-                            print(f"  └ ✅ Application submitted successfully!")
-                        else:
-                            print(f"  └ ⚠️ Application may not have been submitted")
+                        if result is None:
+                            continue
 
                     except Exception as e:
                         print(f"  └ ❌ Error processing {url}: {e}")
 
-                    # Human-like random delay between actions
-                    delay = random.uniform(CYCLE_DELAY_MIN, CYCLE_DELAY_MAX)
-                    print(f"  └ ⏳ Waiting {delay:.1f}s before next action...")
-                    for _ in range(int(delay)):
-                        if not _running:
-                            break
-                        time.sleep(1)
+                    _wait_before_next_action()
 
             # After completing a full cycle
             if _running:
@@ -302,10 +282,7 @@ def scanning_loop():
                 # Longer delay between full cycles
                 cycle_delay = random.uniform(SCAN_INTERVAL_MIN, SCAN_INTERVAL_MAX)
                 print(f"\n⏳ Waiting {cycle_delay:.0f}s before next scan cycle...")
-                for _ in range(int(cycle_delay)):
-                    if not _running:
-                        break
-                    time.sleep(1)
+                interruptible_sleep(cycle_delay, _is_running)
 
     except KeyboardInterrupt:
         print("\n\n🛑 Interrupted by user.")
@@ -337,7 +314,7 @@ def main():
 
     # Phase 2: Start Telegram bot in background
     print("\n🤖 Starting Telegram bot...")
-    bot_thread = bot_telegram.start_bot_thread()
+    bot_telegram.start_bot_thread()
     print("  └ Bot running in background thread.")
 
     # Wait for the Telegram bot to be fully initialized

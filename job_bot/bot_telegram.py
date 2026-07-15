@@ -4,10 +4,9 @@ Handles Telegram commands, sends notifications, and lets users
 edit their resume directly through the bot via /resume command.
 """
 import asyncio
-import json
 import os
 import threading
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -21,6 +20,7 @@ from telegram.ext import (
 )
 
 from db_manager import get_today_stats, get_total_stats, get_recent_applied
+from utils import load_json, pop_one_based, save_json, truncate_text
 
 # ─── Configuration ──────────────────────────────────────────────────────────────
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or ""
@@ -75,23 +75,12 @@ _QUESTION_READY = threading.Event()
 
 def _load_resume() -> dict:
     """Load the resume JSON file."""
-    try:
-        with open(RESUME_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"❌ Resume load error: {e}")
-        return {}
+    return load_json(RESUME_PATH, {}, "❌ Resume load error")
 
 
 def _save_resume(data: dict) -> bool:
     """Save the resume JSON file."""
-    try:
-        with open(RESUME_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        return True
-    except Exception as e:
-        print(f"❌ Resume save error: {e}")
-        return False
+    return save_json(RESUME_PATH, data, "❌ Resume save error")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -100,22 +89,12 @@ def _save_resume(data: dict) -> bool:
 
 def _load_targets() -> list:
     """Load target URLs from target_sites.json."""
-    try:
-        with open(TARGETS_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
+    return load_json(TARGETS_PATH, [])
 
 
 def _save_targets(targets: list) -> bool:
     """Save target URLs to target_sites.json."""
-    try:
-        with open(TARGETS_PATH, "w", encoding="utf-8") as f:
-            json.dump(targets, f, indent=2, ensure_ascii=False)
-        return True
-    except Exception as e:
-        print(f"❌ Targets save error: {e}")
-        return False
+    return save_json(TARGETS_PATH, targets, "❌ Targets save error")
 
 
 def _format_targets_summary(targets: list) -> str:
@@ -124,8 +103,7 @@ def _format_targets_summary(targets: list) -> str:
         return "🎯 *Target URLs*\n\n_No URLs added yet. Use /targets to add some._"
     lines = [f"🎯 *Target URLs* ({len(targets)})"]
     for i, url in enumerate(targets, 1):
-        # Truncate long URLs for display
-        display = url[:70] + "..." if len(url) > 70 else url
+        display = truncate_text(url, 73)
         lines.append(f"{i}. `{display}`")
     return "\n".join(lines)
 
@@ -141,7 +119,7 @@ def _format_resume_summary(resume: dict) -> str:
     lines = ["📋 *Your Resume*"]
 
     # Personal Info
-    lines.append(f"\n👤 *Personal Info*")
+    lines.append("\n👤 *Personal Info*")
     lines.append(f"   Name: {info.get('name', '—')} {info.get('last_name', '')}")
     lines.append(f"   Email: {info.get('email', '—')}")
     lines.append(f"   Phone: {info.get('phone', '—') or '—'}")
@@ -154,7 +132,7 @@ def _format_resume_summary(resume: dict) -> str:
         lines.append(f"\n🛠 *Skills* ({len(skills)})")
         lines.append(f"   {', '.join(skills)}")
     else:
-        lines.append(f"\n🛠 *Skills* (0) — _Add some!_")
+        lines.append("\n🛠 *Skills* (0) — _Add some!_")
 
     # Experience
     lines.append(f"\n💼 *Experience* ({len(experience)})")
@@ -162,7 +140,7 @@ def _format_resume_summary(resume: dict) -> str:
         for i, exp in enumerate(experience, 1):
             lines.append(f"   {i}. {exp.get('title', '—')} @ {exp.get('company', '—')} ({exp.get('years', '?')}yrs)")
     else:
-        lines.append(f"   _No experience added yet_")
+        lines.append("   _No experience added yet_")
 
     # Education
     lines.append(f"\n🎓 *Education* ({len(education)})")
@@ -170,10 +148,10 @@ def _format_resume_summary(resume: dict) -> str:
         for i, edu in enumerate(education, 1):
             lines.append(f"   {i}. {edu.get('degree', '—')} in {edu.get('field', '—')} — {edu.get('school', '—')}")
     else:
-        lines.append(f"   _No education added yet_")
+        lines.append("   _No education added yet_")
 
     # Preferences
-    lines.append(f"\n⚙️ *Preferences*")
+    lines.append("\n⚙️ *Preferences*")
     lines.append(f"   Remote only: {'✅' if prefs.get('remote_only') else '❌'}")
     lines.append(f"   Min match: {prefs.get('min_match_percentage', 70)}%")
 
@@ -535,29 +513,24 @@ async def handle_skill_remove(update: Update, context: ContextTypes.DEFAULT_TYPE
     text = update.message.text.strip()
     resume = _load_resume()
     skills = resume.get("skills", [])
+    removed, error = pop_one_based(skills, text)
 
-    try:
-        idx = int(text) - 1
-        if 0 <= idx < len(skills):
-            removed = skills.pop(idx)
-            resume["skills"] = skills
-            _save_resume(resume)
-            await update.message.reply_text(
-                f"✅ Removed skill: `{removed}`\n\n"
-                f"Total skills now: {len(skills)}",
-                parse_mode="Markdown",
-                reply_markup=_skills_keyboard(),
-            )
-        else:
-            await update.message.reply_text(
-                f"❌ Invalid number! Choose 1-{len(skills)}",
-                reply_markup=_skills_keyboard(),
-            )
-    except ValueError:
+    if error:
         await update.message.reply_text(
-            "❌ Please send a valid number!",
+            error,
             reply_markup=_skills_keyboard(),
         )
+        return RESUME_MAIN
+
+    assert removed is not None
+    resume["skills"] = skills
+    _save_resume(resume)
+    await update.message.reply_text(
+        f"✅ Removed skill: `{removed}`\n\n"
+        f"Total skills now: {len(skills)}",
+        parse_mode="Markdown",
+        reply_markup=_skills_keyboard(),
+    )
     return RESUME_MAIN
 
 
@@ -606,28 +579,23 @@ async def handle_exp_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     text = update.message.text.strip()
     resume = _load_resume()
     exp = resume.get("experience", [])
+    removed, error = pop_one_based(exp, text)
 
-    try:
-        idx = int(text) - 1
-        if 0 <= idx < len(exp):
-            removed = exp.pop(idx)
-            resume["experience"] = exp
-            _save_resume(resume)
-            await update.message.reply_text(
-                f"✅ Removed: *{removed['title']}* @ {removed['company']}",
-                parse_mode="Markdown",
-                reply_markup=_experience_keyboard(),
-            )
-        else:
-            await update.message.reply_text(
-                f"❌ Invalid number! Choose 1-{len(exp)}",
-                reply_markup=_experience_keyboard(),
-            )
-    except ValueError:
+    if error:
         await update.message.reply_text(
-            "❌ Please send a valid number!",
+            error,
             reply_markup=_experience_keyboard(),
         )
+        return RESUME_MAIN
+
+    assert removed is not None
+    resume["experience"] = exp
+    _save_resume(resume)
+    await update.message.reply_text(
+        f"✅ Removed: *{removed['title']}* @ {removed['company']}",
+        parse_mode="Markdown",
+        reply_markup=_experience_keyboard(),
+    )
     return RESUME_MAIN
 
 
@@ -676,28 +644,23 @@ async def handle_edu_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     text = update.message.text.strip()
     resume = _load_resume()
     edu = resume.get("education", [])
+    removed, error = pop_one_based(edu, text)
 
-    try:
-        idx = int(text) - 1
-        if 0 <= idx < len(edu):
-            removed = edu.pop(idx)
-            resume["education"] = edu
-            _save_resume(resume)
-            await update.message.reply_text(
-                f"✅ Removed: *{removed['degree']}* in {removed['field']}",
-                parse_mode="Markdown",
-                reply_markup=_education_keyboard(),
-            )
-        else:
-            await update.message.reply_text(
-                f"❌ Invalid number! Choose 1-{len(edu)}",
-                reply_markup=_education_keyboard(),
-            )
-    except ValueError:
+    if error:
         await update.message.reply_text(
-            "❌ Please send a valid number!",
+            error,
             reply_markup=_education_keyboard(),
         )
+        return RESUME_MAIN
+
+    assert removed is not None
+    resume["education"] = edu
+    _save_resume(resume)
+    await update.message.reply_text(
+        f"✅ Removed: *{removed['degree']}* in {removed['field']}",
+        parse_mode="Markdown",
+        reply_markup=_education_keyboard(),
+    )
     return RESUME_MAIN
 
 
@@ -830,7 +793,7 @@ async def targets_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             return TARGETS_MAIN
         text = "✏️ *Remove URL*\n\nSend me the **number** of the URL to remove:\n\n"
         for i, url in enumerate(targets, 1):
-            display = url[:60] + "..." if len(url) > 60 else url
+            display = truncate_text(url, 63)
             text += f"  `{i}. {display}`\n"
         await query.edit_message_text(text, parse_mode="Markdown")
         return AWAIT_TARGET_REMOVE
@@ -867,7 +830,7 @@ async def handle_target_add(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     await update.message.reply_text(
         f"✅ URL added! Total targets: {len(targets)}\n\n"
-        f"`{url[:80]}{'...' if len(url) > 80 else ''}`",
+        f"`{truncate_text(url, 83)}`",
         parse_mode="Markdown",
         reply_markup=_targets_keyboard(),
     )
@@ -878,29 +841,24 @@ async def handle_target_remove(update: Update, context: ContextTypes.DEFAULT_TYP
     """Handle removing a target URL by index."""
     text = update.message.text.strip()
     targets = _load_targets()
+    removed, error = pop_one_based(targets, text)
 
-    try:
-        idx = int(text) - 1
-        if 0 <= idx < len(targets):
-            removed = targets.pop(idx)
-            _save_targets(targets)
-            display = removed[:60] + "..." if len(removed) > 60 else removed
-            await update.message.reply_text(
-                f"✅ Removed: `{display}`\n\n"
-                f"Total targets now: {len(targets)}",
-                parse_mode="Markdown",
-                reply_markup=_targets_keyboard(),
-            )
-        else:
-            await update.message.reply_text(
-                f"❌ Invalid number! Choose 1-{len(targets)}",
-                reply_markup=_targets_keyboard(),
-            )
-    except ValueError:
+    if error:
         await update.message.reply_text(
-            "❌ Please send a valid number!",
+            error,
             reply_markup=_targets_keyboard(),
         )
+        return TARGETS_MAIN
+
+    assert removed is not None
+    _save_targets(targets)
+    display = truncate_text(removed, 63)
+    await update.message.reply_text(
+        f"✅ Removed: `{display}`\n\n"
+        f"Total targets now: {len(targets)}",
+        parse_mode="Markdown",
+        reply_markup=_targets_keyboard(),
+    )
     return TARGETS_MAIN
 
 
