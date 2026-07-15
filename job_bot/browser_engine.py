@@ -395,73 +395,48 @@ class BrowserEngine:
 
     # ── Page Content Extraction ─────────────────────────────────────────────────
 
-    def get_page_content(self, url: str, scroll_passes: int = 3) -> str:
-        """Visit a URL, simulate human-like scrolling, and return raw HTML.
-
-        Args:
-            url: The target URL to visit.
-            scroll_passes: Number of times to scroll down (default 3).
-
-        Returns:
-            The full page HTML as a string.
-        """
+    def _read_page(
+        self,
+        url: str,
+        scroll_passes: int,
+        visible_text: bool,
+    ) -> str:
         self._current_url = url
         page = self.context.new_page()
         try:
-            print(f"  📄 Navigating to: {url}")
+            if not visible_text:
+                print(f"  📄 Navigating to: {url}")
             page.goto(url, timeout=45000, wait_until="domcontentloaded")
-
-            # Wait for the page to settle
             page.wait_for_timeout(random.randint(1000, 3000))
 
-            # Human-like scrolling behavior
-            for i in range(scroll_passes):
+            for _ in range(scroll_passes):
                 scroll_distance = random.randint(300, 800)
                 page.evaluate(f"window.scrollBy(0, {scroll_distance})")
-                delay = random.uniform(0.8, 2.5)
-                time.sleep(delay)
-                # Occasionally scroll back up a bit (like a human reading)
-                if random.random() < 0.3:
+                time.sleep(random.uniform(0.8, 2.5))
+                if not visible_text and random.random() < 0.3:
                     page.evaluate(f"window.scrollBy(0, -{random.randint(50, 200)})")
                     time.sleep(random.uniform(0.3, 0.7))
 
-            # Scroll back to top
+            if visible_text:
+                text = page.evaluate("() => document.body.innerText")
+                return re.sub(r"\s+", " ", text).strip()
+
             page.evaluate("window.scrollTo(0, 0)")
             time.sleep(random.uniform(0.5, 1.0))
-
             return page.content()
-
         except Exception as e:
             print(f"  ❌ Error loading {url}: {e}")
             return ""
         finally:
             page.close()
+
+    def get_page_content(self, url: str, scroll_passes: int = 3) -> str:
+        """Visit a URL, simulate human-like scrolling, and return raw HTML."""
+        return self._read_page(url, scroll_passes, visible_text=False)
 
     def get_page_text(self, url: str, scroll_passes: int = 3) -> str:
         """Like get_page_content but returns cleaned visible text instead of HTML."""
-        self._current_url = url
-        page = self.context.new_page()
-        try:
-            page.goto(url, timeout=45000, wait_until="domcontentloaded")
-            page.wait_for_timeout(random.randint(1000, 3000))
-
-            for i in range(scroll_passes):
-                page.evaluate(f"window.scrollBy(0, {random.randint(300, 800)})")
-                time.sleep(random.uniform(0.8, 2.5))
-
-            # Extract visible text
-            text = page.evaluate(
-                "() => document.body.innerText"
-            )
-            # Clean up whitespace
-            text = re.sub(r'\s+', ' ', text).strip()
-            return text
-
-        except Exception as e:
-            print(f"  ❌ Error loading {url}: {e}")
-            return ""
-        finally:
-            page.close()
+        return self._read_page(url, scroll_passes, visible_text=True)
 
     # ══════════════════════════════════════════════════════════════════════════════
     # PHASE 5: AUTO-FILLER ENGINE UPGRADE
@@ -900,7 +875,7 @@ class BrowserEngine:
                 try:
                     # Check if it looks like a resume upload field
                     file_input.set_input_files(resume_path)
-                    print(f"    ✅ Resume uploaded successfully")
+                    print("    ✅ Resume uploaded successfully")
                     time.sleep(random.uniform(1.0, 2.0))
                     return True
                 except Exception as e:
@@ -931,7 +906,7 @@ class BrowserEngine:
                         for file_input_after in file_inputs_after:
                             try:
                                 file_input_after.set_input_files(resume_path)
-                                print(f"    ✅ Resume uploaded via button")
+                                print("    ✅ Resume uploaded via button")
                                 time.sleep(random.uniform(1.0, 2.0))
                                 return True
                             except Exception:
@@ -969,7 +944,7 @@ class BrowserEngine:
                     accept_attr = file_input.get_attribute("accept") or ""
                     if "image" in accept_attr.lower() or "photo" in accept_attr.lower():
                         file_input.set_input_files(profile_path)
-                        print(f"    ✅ Profile picture uploaded successfully")
+                        print("    ✅ Profile picture uploaded successfully")
                         time.sleep(random.uniform(1.0, 2.0))
                         return True
                 except Exception as e:
@@ -1001,7 +976,7 @@ class BrowserEngine:
                                 accept_attr = file_input_after.get_attribute("accept") or ""
                                 if "image" in accept_attr.lower():
                                     file_input_after.set_input_files(profile_path)
-                                    print(f"    ✅ Profile picture uploaded via button")
+                                    print("    ✅ Profile picture uploaded via button")
                                     time.sleep(random.uniform(1.0, 2.0))
                                     return True
                             except Exception:
@@ -1141,7 +1116,7 @@ class BrowserEngine:
                 print(f"    📑 Submit button found on step {current_step}")
                 break
             else:
-                print(f"    📑 No navigation buttons found, might be final step")
+                print("    📑 No navigation buttons found, might be final step")
                 break
 
     # ─── Field Auto-Detection & Filling ─────────────────────────────────────────
@@ -1628,23 +1603,6 @@ class BrowserEngine:
         Workday has a complex, iframe-based multi-form workflow.
         """
         print("    🏗️ Using Workday-specific handler")
-
-        # Workday often uses iframes — attempt to find the application iframe
-        workday_page = page
-        try:
-            iframes = page.locator("iframe").all()
-            for iframe in iframes:
-                try:
-                    frame = iframe.content_frame
-                    if frame:
-                        body = frame.locator("body")
-                        if body.count() > 0 and "application" in body.inner_text().lower():
-                            workday_page = frame
-                            break
-                except Exception:
-                    continue
-        except Exception:
-            pass
 
         # Wait for Workday form to load (it's slow)
         page.wait_for_timeout(random.randint(3000, 5000))

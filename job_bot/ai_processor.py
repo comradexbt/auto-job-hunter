@@ -17,6 +17,7 @@ from typing import Optional
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from google.api_core import exceptions as google_exceptions
+from utils import read_json
 
 # ─── Configuration ──────────────────────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ def init_gemini():
         _genai_model = None
         _genai_available = False
         print(f"  └ ⚠️ Gemini init failed: {e}")
-        print(f"  └    Falling back to regex extraction")
+        print("  └    Falling back to regex extraction")
 
     return _genai_model
 
@@ -189,8 +190,7 @@ def _call_gemini(prompt: str, system_instruction: str = "", json_mode: bool = Fa
 def load_resume() -> dict:
     """Load the user's resume data from my_resume.json."""
     path = os.path.join(os.path.dirname(__file__), "my_resume.json")
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    return read_json(path)
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -513,7 +513,7 @@ def match_job(job_info: dict, resume: dict) -> bool:
 
     # Unknown position – can't match, skip
     if job_info.get("job_title", "").lower() in ("", "unknown position", "unknown"):
-        print(f"  └ [MATCH] ❌ Unknown position, skipping")
+        print("  └ [MATCH] ❌ Unknown position, skipping")
         return False
 
     # ── Gemini-powered matching ─────────────────────────────────────────
@@ -580,7 +580,7 @@ def match_job(job_info: dict, resume: dict) -> bool:
 
     # ── Fallback matching logic ─────────────────────────────────────────
     # Accept all remote jobs as a safe fallback
-    print(f"  └ [MATCH] ✅ Remote job accepted (fallback mode)")
+    print("  └ [MATCH] ✅ Remote job accepted (fallback mode)")
     return True
 
 
