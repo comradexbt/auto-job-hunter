@@ -32,8 +32,9 @@ nano .env
 **Add your tokens:**
 ```
 TELEGRAM_BOT_TOKEN=your_actual_bot_token
+TELEGRAM_ALLOWED_USER_IDS=your_numeric_telegram_user_id
 GEMINI_API_KEY=your_actual_gemini_key
-WEB3_API_TOKEN=U8sMcZhH43rDxQuEAgTiHRJcAh1QKrED
+WEB3_API_TOKEN=your_actual_web3_api_token
 ```
 
 ### Step 3: Set Up Proxy for Telegram (Pakistan)

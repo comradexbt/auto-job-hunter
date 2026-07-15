@@ -46,8 +46,9 @@ nano .env
 Add your tokens:
 ```
 TELEGRAM_BOT_TOKEN=your_actual_bot_token
+TELEGRAM_ALLOWED_USER_IDS=your_numeric_telegram_user_id
 GEMINI_API_KEY=your_actual_gemini_key
-WEB3_API_TOKEN=U8sMcZhH43rDxQuEAgTiHRJcAh1QKrED
+WEB3_API_TOKEN=your_actual_web3_api_token
 ```
 
 ## Step 4: Place Your Files
@@ -76,10 +77,9 @@ sudo nano /etc/systemd/system/job_bot.service
 Update these lines in the service file:
 ```
 User=your_actual_linux_username
-WorkingDirectory=/actual/path/to/AUTO JOBS TOOL/job_bot
-ExecStart=/usr/bin/python3 /actual/path/to/AUTO JOBS TOOL/job_bot/main.py
-Environment="TELEGRAM_BOT_TOKEN=your_actual_bot_token"
-Environment="GEMINI_API_KEY=your_actual_gemini_key"
+WorkingDirectory="/actual/path/to/AUTO JOBS TOOL/job_bot"
+ExecStart=/usr/bin/python3 "/actual/path/to/AUTO JOBS TOOL/job_bot/main.py"
+EnvironmentFile="/actual/path/to/AUTO JOBS TOOL/job_bot/.env"
 ```
 
 ## Step 6: Enable and Start Service
@@ -178,6 +178,7 @@ Use Telegram commands:
 
 - Never commit `.env` file to git
 - Keep API tokens secure
+- Set `TELEGRAM_ALLOWED_USER_IDS` so only trusted users can control the bot
 - Use firewall rules to restrict access
 - Regularly update dependencies
 - Monitor logs for suspicious activity

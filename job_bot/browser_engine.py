@@ -25,6 +25,15 @@ from playwright.sync_api import (
     Page,
     Playwright,
     Locator,
+    Request,
+    Route,
+    WebSocketRoute,
+)
+
+from security import (
+    is_safe_public_http_url,
+    is_safe_public_websocket_url,
+    url_for_log,
 )
 
 USER_DATA_DIR = os.path.join(os.path.dirname(__file__), "playwright_data")
@@ -311,17 +320,15 @@ class BrowserEngine:
     def start(self) -> BrowserContext:
         """Launch the browser with a persistent context."""
         self.playwright = sync_playwright().start()
-        os.makedirs(USER_DATA_DIR, exist_ok=True)
+        os.makedirs(USER_DATA_DIR, mode=0o700, exist_ok=True)
+        os.chmod(USER_DATA_DIR, 0o700)
 
         self.context = self.playwright.chromium.launch_persistent_context(
             user_data_dir=USER_DATA_DIR,
             headless=self.headless,
             args=[
                 "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
                 "--disable-dev-shm-usage",
-                "--disable-web-security",
-                "--disable-features=IsolateOrigins,site-per-process",
             ],
             viewport={"width": 1280, "height": 800},
             user_agent=(
@@ -331,13 +338,30 @@ class BrowserEngine:
             ),
             locale="en-US",
             timezone_id="America/New_York",
-            permissions=["geolocation"],
-            geolocation={"latitude": 40.7128, "longitude": -74.0060},  # New York
+            service_workers="block",
         )
 
+        self.context.route("**/*", self._route_request)
+        self.context.route_web_socket("**/*", self._route_web_socket)
         self._apply_stealth()
         print("🌐 Browser engine started successfully.")
         return self.context
+
+    def _route_request(self, route: Route, request: Request) -> None:
+        if is_safe_public_http_url(request.url):
+            route.continue_()
+            return
+
+        print(f"  └ 🛡️ Blocked unsafe browser request: {url_for_log(request.url)}")
+        route.abort("blockedbyclient")
+
+    def _route_web_socket(self, route: WebSocketRoute) -> None:
+        if is_safe_public_websocket_url(route.url):
+            route.connect_to_server()
+            return
+
+        print(f"  └ 🛡️ Blocked unsafe WebSocket: {url_for_log(route.url)}")
+        route.close()
 
     def _apply_stealth(self) -> None:
         """Apply stealth patches to avoid bot detection."""
@@ -368,11 +392,9 @@ class BrowserEngine:
 
         # Try to use playwright-stealth if available
         try:
-            from playwright_stealth import stealth_sync  # type: ignore
+            from playwright_stealth import Stealth
 
-            page = self.context.new_page()
-            stealth_sync(page)
-            page.close()
+            Stealth().apply_stealth_sync(self.context)
             print("  └ playwright-stealth injected successfully")
         except ImportError:
             print("  └ playwright-stealth not installed, using built-in stealth")
@@ -405,6 +427,10 @@ class BrowserEngine:
         Returns:
             The full page HTML as a string.
         """
+        if not is_safe_public_http_url(url):
+            print(f"  🛡️ Blocked unsafe target URL: {url_for_log(url)}")
+            return ""
+
         self._current_url = url
         page = self.context.new_page()
         try:
@@ -439,6 +465,10 @@ class BrowserEngine:
 
     def get_page_text(self, url: str, scroll_passes: int = 3) -> str:
         """Like get_page_content but returns cleaned visible text instead of HTML."""
+        if not is_safe_public_http_url(url):
+            print(f"  🛡️ Blocked unsafe target URL: {url_for_log(url)}")
+            return ""
+
         self._current_url = url
         page = self.context.new_page()
         try:
@@ -1886,6 +1916,10 @@ class BrowserEngine:
         Returns:
             True if the application was submitted successfully.
         """
+        if not is_safe_public_http_url(form_url):
+            print(f"  🛡️ Blocked unsafe application URL: {url_for_log(form_url)}")
+            return False
+
         self._current_url = form_url
         page = self.context.new_page()
         try:

@@ -96,8 +96,14 @@ cp .env.example .env
 Edit `.env` with your tokens:
 ```
 TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_ALLOWED_USER_IDS=123456789
 GEMINI_API_KEY=your_gemini_key_here
+WEB3_API_TOKEN=your_web3_api_token_here
 ```
+
+`TELEGRAM_ALLOWED_USER_IDS` is required. The bot rejects all commands until
+at least one numeric Telegram user ID is allowlisted, and control is limited
+to private chats.
 
 ### 4. Prepare Your Data
 

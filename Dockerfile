@@ -31,24 +31,25 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV PYTHONUNBUFFERED=1
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
+
 # Copy requirements and install Python dependencies
 COPY job_bot/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install playwright-stealth
 
-# Install Playwright browsers without using su
+# Install Playwright browsers
 RUN playwright install chromium
 RUN playwright install-deps chromium
 
 # Copy application files
 COPY job_bot/ .
 
-# Create necessary directories
-RUN mkdir -p playwright_data resumes
-
-# Set environment variables
-ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
-ENV PYTHONUNBUFFERED=1
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
+# Run Chromium and the bot without root privileges
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p playwright_data resumes \
+    && chown -R appuser:appuser /app /ms-playwright
+USER appuser
 
 CMD ["python", "main.py"]
